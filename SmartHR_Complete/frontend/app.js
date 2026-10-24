@@ -236,10 +236,10 @@ function showToast(msg, type = 'success') {
   }, 3500);
 }
 
-// Fast API Fetch with 3.5s Timeout
+// Fast API Fetch with 10s Timeout
 async function request(path, options = {}) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3500);
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
   try {
     const r = await fetch(API + path, {
       signal: controller.signal,
@@ -252,7 +252,11 @@ async function request(path, options = {}) {
       try {
         const p = JSON.parse(msg);
         if (p.message) msg = p.message;
+        else if (p.error && typeof p.error === 'string' && p.error !== 'Bad Request' && p.error !== 'Internal Server Error') msg = p.error;
       } catch (_) {}
+      if (r.status === 409 && (!msg || msg === 'Conflict')) {
+        msg = 'An employee with this email already exists in the system.';
+      }
       throw new Error(msg || `Request failed (${r.status})`);
     }
     if (r.status === 204) return null;
@@ -1986,7 +1990,6 @@ function openModal(title, fields, onSave) {
       closeModal();
       playCyberSound('success');
       showToast('Record saved successfully!', 'success');
-      await refresh();
     } catch (err) {
       playCyberSound('click');
       showToast('Could not save: ' + err.message, 'error');
@@ -1996,6 +1999,8 @@ function openModal(title, fields, onSave) {
         saveBtn.textContent = 'Save Record';
       }
     }
+    // Refresh data after modal closes (outside try-catch so refresh errors don't show as save errors)
+    try { await refresh(); } catch(_) {}
   };
 }
 
@@ -2033,6 +2038,12 @@ function addEmployeeModal() {
     if (!cleanName) throw new Error('Please enter a full name.');
     if (!cleanEmail || !cleanEmail.includes('@')) throw new Error('Please enter a valid corporate email address.');
 
+    // Instant client-side duplicate check
+    const dup = employees.find(e => e.email && e.email.toLowerCase() === cleanEmail);
+    if (dup) {
+      throw new Error(`An employee with email "${cleanEmail}" is already registered (${dup.name}).`);
+    }
+
     await request('/employees', {
       method: 'POST',
       body: JSON.stringify({
@@ -2069,6 +2080,17 @@ function editEmployeeModal(id) {
     { name: 'leaveBalance', label: 'Leave Balance (days)', type: 'number', min: 0, value: e.leaveBalance },
     { name: 'status', label: 'Employment Status', options: ['ACTIVE', 'ON_LEAVE', 'INACTIVE'].map(s => ({ value: s, label: s })), value: e.status || 'ACTIVE' }
   ], async d => {
+    const cleanEmail = String(d.email || '').trim().toLowerCase();
+    const cleanName = String(d.name || '').trim();
+    if (!cleanName) throw new Error('Please enter a full name.');
+    if (!cleanEmail || !cleanEmail.includes('@')) throw new Error('Please enter a valid corporate email address.');
+
+    // Duplicate check excluding self
+    const dup = employees.find(e => e.id !== id && e.email && e.email.toLowerCase() === cleanEmail);
+    if (dup) {
+      throw new Error(`Email "${cleanEmail}" is already used by another employee (${dup.name}).`);
+    }
+
     await request('/employees/' + id, {
       method: 'PUT',
       body: JSON.stringify({

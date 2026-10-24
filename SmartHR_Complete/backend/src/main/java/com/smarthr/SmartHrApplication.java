@@ -53,6 +53,14 @@ public class SmartHrApplication {
             return String.valueOf(v).trim();
         }
 
+        @ExceptionHandler(ResponseStatusException.class)
+        public org.springframework.http.ResponseEntity<Map<String, Object>> handleStatusException(ResponseStatusException ex) {
+            String msg = ex.getReason() != null ? ex.getReason() : ex.getMessage();
+            return org.springframework.http.ResponseEntity
+                .status(ex.getStatusCode())
+                .body(Map.of("status", "error", "message", msg, "statusCode", ex.getStatusCode().value()));
+        }
+
         @GetMapping("/health")
         Map<String, Object> health() {
             return Map.of("status", "ok", "service", "PeoplePilot API", "version", "2.4.0");
