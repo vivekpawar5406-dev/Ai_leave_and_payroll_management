@@ -1,0 +1,24 @@
+# Build and distribution
+target/
+**/target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs
+*.log
+
+# IDE & Editor settings
+.idea/
+*.iml
+.vscode/*
+!.vscode/settings.json
+
+# OS specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node modules
+node_modules/
